@@ -209,6 +209,13 @@ class CategoryModel {
   });
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
+    final parent = json['parent'];
+    final String? parentId = switch (parent) {
+      String() => parent,
+      Map<String, dynamic>() => parent['_id'] as String?,
+      _ => null,
+    };
+
     return CategoryModel(
       id: json['_id'] as String,
       name: json['name'] as String,
@@ -217,7 +224,7 @@ class CategoryModel {
       image: json['image'] != null
           ? CategoryImageModel.fromJson(json['image'] as Map<String, dynamic>)
           : null,
-      parentId: json['parent'] as String?,
+      parentId: parentId,
       isActive: json['isActive'] as bool? ?? true,
     );
   }
@@ -258,8 +265,8 @@ class CategoryImageModel {
 
   factory CategoryImageModel.fromJson(Map<String, dynamic> json) {
     return CategoryImageModel(
-      publicId: json['public_id'] as String,
-      url: json['url'] as String,
+      publicId: json['public_id'] as String? ?? '',
+      url: json['url'] as String? ?? '',
     );
   }
 

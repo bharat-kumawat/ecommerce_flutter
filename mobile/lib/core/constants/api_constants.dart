@@ -7,7 +7,7 @@ class ApiConstants {
   // Production: use HTTPS URL
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.83.246.14:5000/api',
+    defaultValue: 'http://10.0.2.2:5000/api',
   );
 
   // Production base URL — set via --dart-define=API_BASE_URL=https://your-domain.com/api

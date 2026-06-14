@@ -22,9 +22,6 @@ export const getProfile = asyncHandler(async (req, res) => {
   ]);
 
   const sanitized = user.toObject();
-  if (sanitized.savedCard?.cardNumber) {
-    delete sanitized.savedCard.cardNumber;
-  }
 
   sanitized.ordersCount = ordersCount;
   sanitized.reviewsCount = reviewsCount;
@@ -226,19 +223,18 @@ export const getSavedCard = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, { card: user.savedCard || null }));
 });
 
-// @desc    Get saved card for checkout (returns full card details)
+// @desc    Get saved card for checkout
 // @route   GET /api/users/card/checkout
 export const getSavedCardForCheckout = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
-  if (!user.savedCard || !user.savedCard.cardNumber) {
+  if (!user.savedCard || !user.savedCard.last4) {
     throw ApiError.notFound("No saved card found");
   }
 
   res.json(
     new ApiResponse(200, {
       card: {
-        cardNumber: user.savedCard.cardNumber,
         cardholderName: user.savedCard.cardholderName,
         expiry: user.savedCard.expiry,
         cardType: user.savedCard.cardType,
@@ -251,17 +247,15 @@ export const getSavedCardForCheckout = asyncHandler(async (req, res) => {
 // @desc    Save card
 // @route   PUT /api/users/card
 export const saveCard = asyncHandler(async (req, res) => {
-  const { cardNumber, cardholderName, expiry, cvv, cardType } = req.body;
+  const { cardNumber, cardholderName, expiry, cardType } = req.body;
 
   const user = await User.findById(req.user._id);
 
   const cleanedCardNumber = cardNumber ? cardNumber.replace(/\s|-/g, "") : "";
 
   user.savedCard = {
-    cardNumber: cleanedCardNumber,
     cardholderName,
     expiry,
-    cvv,
     cardType: cardType || _detectCardType(cleanedCardNumber),
     last4: cleanedCardNumber.slice(-4),
   };

@@ -217,18 +217,13 @@ export const updateProduct = asyncHandler(async (req, res) => {
     }
   }
 
-  const product = await Product.findByIdAndUpdate(
-    req.params.id,
-    updateData,
-    {
-      new: true,
-      runValidators: true,
-    },
-  );
-
+  const product = await Product.findById(req.params.id);
   if (!product) {
     throw ApiError.notFound("Product not found");
   }
+
+  Object.assign(product, updateData);
+  await product.save();
 
   res.json(new ApiResponse(200, { product }, "Product updated"));
 });

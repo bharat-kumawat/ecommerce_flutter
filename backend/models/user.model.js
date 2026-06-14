@@ -46,10 +46,8 @@ const userSchema = new mongoose.Schema(
     resetPasswordToken: { type: String, select: false },
     resetPasswordExpire: { type: Date, select: false },
     savedCard: {
-      cardNumber: { type: String },
       cardholderName: { type: String },
       expiry: { type: String },
-      cvv: { type: String },
       cardType: {
         type: String,
         enum: ["visa", "mastercard", "amex", "discover"],

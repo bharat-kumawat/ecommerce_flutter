@@ -58,16 +58,6 @@ export const createOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  if (stockUpdates.length > 0) {
-    const bulkResult = await Product.bulkWrite(stockUpdates);
-
-    if (bulkResult.modifiedCount !== stockUpdates.length) {
-      throw ApiError.badRequest(
-        "Some items are no longer available. Please check your cart and try again.",
-      );
-    }
-  }
-
   const shippingPrice = itemsPrice > 50 ? 0 : 5; // Free shipping over $50
   const taxPrice = Number((itemsPrice * 0.1).toFixed(2)); // 10% tax
   const totalPrice = itemsPrice + shippingPrice + taxPrice;
@@ -77,6 +67,16 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   try {
     session.startTransaction();
+
+    if (stockUpdates.length > 0) {
+      const bulkResult = await Product.bulkWrite(stockUpdates, { session });
+
+      if (bulkResult.modifiedCount !== stockUpdates.length) {
+        throw ApiError.badRequest(
+          "Some items are no longer available. Please check your cart and try again.",
+        );
+      }
+    }
 
     order = (
       await Order.create(
@@ -110,17 +110,6 @@ export const createOrder = asyncHandler(async (req, res) => {
     await session.commitTransaction();
   } catch (error) {
     await session.abortTransaction();
-
-    // Rollback stock updates
-    if (stockUpdates.length > 0) {
-      const rollbackUpdates = orderItems.map((item) => ({
-        updateOne: {
-          filter: { _id: item.product },
-          update: { $inc: { stock: item.quantity, sold: -item.quantity } },
-        },
-      }));
-      await Product.bulkWrite(rollbackUpdates);
-    }
 
     throw error;
   } finally {

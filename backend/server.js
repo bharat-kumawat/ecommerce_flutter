@@ -20,24 +20,27 @@ if (missing.length > 0) {
 }
 
 const app = express();
-// var cors = require('cors')
 connectDB();
 
 configureCloudinary();
 
 app.use(helmet());
 
-// CORS - support multiple origins (comma-separated CLIENT_URL)
-// const allowedOrigins = process.env.CLIENT_URL
-//   ? process.env.CLIENT_URL.split(",").map((o) => o.trim())
-//   : [];
-app.use(cors());
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(",").map((origin) => origin.trim())
+  : [];
+
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    credentials: true,
+  }),
+);
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE');
-  res.setHeader('Access-Control-Allow-Methods', 'Content-Type', 'Authorization');
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   next();
-})
+});
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10000,

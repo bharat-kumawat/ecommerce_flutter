@@ -4,6 +4,27 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
+const buildVariantFromProduct = (product, variant) => {
+  if (!variant || (!variant.name && !variant.value)) return undefined;
+
+  const variantGroup = product.variants.find((group) => group.name === variant.name);
+  const option = variantGroup?.options.find((item) => item.value === variant.value);
+
+  if (!variantGroup || !option) {
+    throw ApiError.badRequest("Selected variant is not available");
+  }
+
+  if (option.stock < 1) {
+    throw ApiError.badRequest("Selected variant is out of stock");
+  }
+
+  return {
+    name: variantGroup.name,
+    value: option.value,
+    priceModifier: option.priceModifier || 0,
+  };
+};
+
 // @desc    Get user cart
 // @route   GET /api/cart
 export const getCart = asyncHandler(async (req, res) => {
@@ -33,6 +54,8 @@ export const addToCart = asyncHandler(async (req, res) => {
     throw ApiError.badRequest("Product is not available");
   }
 
+  const normalizedVariant = buildVariantFromProduct(product, variant);
+
   if (product.stock < quantity) {
     throw ApiError.badRequest("Insufficient stock");
   }
@@ -54,13 +77,18 @@ export const addToCart = asyncHandler(async (req, res) => {
   const existingItem = cart.items.find(
     (item) =>
       item.product.toString() === productId &&
-      sameVariant(item.variant, variant),
+      sameVariant(item.variant, normalizedVariant),
   );
 
+  const nextQuantity = (existingItem?.quantity || 0) + quantity;
+  if (product.stock < nextQuantity) {
+    throw ApiError.badRequest("Insufficient stock");
+  }
+
   if (existingItem) {
-    existingItem.quantity += quantity;
+    existingItem.quantity = nextQuantity;
   } else {
-    cart.items.push({ product: productId, quantity, variant });
+    cart.items.push({ product: productId, quantity, variant: normalizedVariant });
   }
 
   await cart.save();
