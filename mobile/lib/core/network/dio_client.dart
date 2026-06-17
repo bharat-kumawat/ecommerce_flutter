@@ -34,7 +34,18 @@ class DioClient {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       };
-    print('DioClient configured with base URL: ${_dio.options.baseUrl}');
+
+    if (kDebugMode) {
+      log('DioClient configured with base URL: ${_dio.options.baseUrl}');
+    }
+  }
+
+  Map<String, dynamic> _safeHeaders(Map<String, dynamic> headers) {
+    final sanitized = Map<String, dynamic>.from(headers);
+    if (sanitized.containsKey('Authorization')) {
+      sanitized['Authorization'] = 'Bearer ***';
+    }
+    return sanitized;
   }
 
   void _setupInterceptors() {
@@ -43,14 +54,17 @@ class DioClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _storage.getAccessToken();
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
+          final skipAuth = options.extra['skipAuth'] == true;
+          if (!skipAuth) {
+            final token = await _storage.getAccessToken();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
           }
 
           if (kDebugMode) {
             log('REQUEST: ${options.method} ${options.path}');
-            log('Headers: ${options.headers}');
+            log('Headers: ${_safeHeaders(options.headers)}');
             log('Data: ${options.data}');
           }
 
@@ -76,8 +90,8 @@ class DioClient {
           }
 
           if (error.response?.statusCode == 401) {
-            // Don't retry login requests - invalid credentials won't be fixed by token refresh
-            if (error.requestOptions.path == ApiConstants.login) {
+            if (error.requestOptions.path == ApiConstants.login ||
+                error.requestOptions.path == ApiConstants.refreshToken) {
               handler.next(error);
               return;
             }
@@ -85,14 +99,22 @@ class DioClient {
             final shouldRetry = await _handleUnauthorized(error);
             if (shouldRetry) {
               final token = await _storage.getAccessToken();
+              if (token == null || token.isEmpty) {
+                handler.next(error);
+                return;
+              }
+
               error.requestOptions.headers['Authorization'] = 'Bearer $token';
 
               try {
                 final response = await _dio.fetch(error.requestOptions);
                 handler.resolve(response);
                 return;
-              } catch (e) {
-                handler.reject(e as DioException);
+              } on DioException catch (retryError) {
+                handler.reject(retryError);
+                return;
+              } catch (_) {
+                handler.next(error);
                 return;
               }
             }
@@ -121,7 +143,7 @@ class DioClient {
       final success = await _refreshToken();
       _refreshCompleter?.complete(success);
       return success;
-    } catch (e) {
+    } catch (_) {
       _refreshCompleter?.complete(false);
       return false;
     } finally {
@@ -132,7 +154,7 @@ class DioClient {
   Future<bool> _refreshToken() async {
     try {
       final refreshToken = await _storage.getRefreshToken();
-      if (refreshToken == null) {
+      if (refreshToken == null || refreshToken.isEmpty) {
         await _storage.clearAll();
         return false;
       }
@@ -140,15 +162,28 @@ class DioClient {
       final response = await _dio.post(
         ApiConstants.refreshToken,
         data: {'refreshToken': refreshToken},
-        options: Options(
-          headers: {'Authorization': null},
-        ),
+        options: Options(extra: {'skipAuth': true}),
       );
 
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        final data = response.data['data'];
-        await _storage.setAccessToken(data['accessToken']);
-        await _storage.setRefreshToken(data['refreshToken']);
+      final responseData = response.data;
+      if (response.statusCode == 200 &&
+          responseData is Map<String, dynamic> &&
+          responseData['success'] == true &&
+          responseData['data'] is Map<String, dynamic>) {
+        final data = responseData['data'] as Map<String, dynamic>;
+        final accessToken = data['accessToken'] as String?;
+        final newRefreshToken = data['refreshToken'] as String?;
+
+        if (accessToken == null ||
+            accessToken.isEmpty ||
+            newRefreshToken == null ||
+            newRefreshToken.isEmpty) {
+          await _storage.clearAll();
+          return false;
+        }
+
+        await _storage.setAccessToken(accessToken);
+        await _storage.setRefreshToken(newRefreshToken);
         return true;
       }
 
@@ -157,7 +192,7 @@ class DioClient {
     } on DioException {
       await _storage.clearAll();
       return false;
-    } catch (e) {
+    } catch (_) {
       await _storage.clearAll();
       return false;
     }
