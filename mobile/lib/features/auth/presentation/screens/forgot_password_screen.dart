@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_providers.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -16,17 +17,34 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   bool _isLoading = false;
   bool _emailSent = false;
 
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return 'Please enter your email';
+    final validEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!validEmail.hasMatch(email)) return 'Please enter a valid email';
+    return null;
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final failure = await ref
+        .read(authNotifierProvider.notifier)
+        .forgotPassword(_emailController.text.trim());
 
-    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
 
     setState(() {
       _isLoading = false;
-      _emailSent = true;
+      _emailSent = failure == null;
     });
+
+    if (failure != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failure.message)),
+      );
+    }
   }
 
   @override
@@ -40,9 +58,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Forgot Password'),
-      ),
+      appBar: AppBar(title: const Text('Forgot Password')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -58,11 +74,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            Icons.lock_reset,
-            size: 80,
-            color: colorScheme.primary,
-          ),
+          Icon(Icons.lock_reset, size: 80, color: colorScheme.primary),
           const SizedBox(height: 24),
           Text(
             'Reset Password',
@@ -73,7 +85,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Enter your email address and we\'ll send you a link to reset your password.',
+            'Enter your email address.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -87,12 +99,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               labelText: 'Email',
               prefixIcon: Icon(Icons.email_outlined),
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-              }
-              return null;
-            },
+            validator: _validateEmail,
           ),
           const SizedBox(height: 32),
           SizedBox(
@@ -132,7 +139,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          'We\'ve sent a password reset link to ${_emailController.text}. Please check your inbox and follow the instructions.',
+          'Request sent to ${_emailController.text.trim()}.',
           style: Theme.of(context).textTheme.bodyLarge,
           textAlign: TextAlign.center,
         ),
