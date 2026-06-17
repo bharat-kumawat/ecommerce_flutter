@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_names.dart';
+import '../providers/auth_providers.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   final String token;
@@ -22,17 +23,42 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   bool _isLoading = false;
   bool _resetSuccess = false;
 
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+    if (password.isEmpty) return 'Please enter a password';
+    if (password.length < 8 || password.length > 128) {
+      return 'Password must be between 8 and 128 characters';
+    }
+    final hasLowercase = RegExp(r'[a-z]').hasMatch(password);
+    final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
+    final hasNumber = RegExp(r'\d').hasMatch(password);
+    if (!hasLowercase || !hasUppercase || !hasNumber) {
+      return 'Use uppercase, lowercase and number';
+    }
+    return null;
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(seconds: 1));
+    final failure = await ref
+        .read(authNotifierProvider.notifier)
+        .resetPassword(widget.token, _passwordController.text);
+
+    if (!mounted) return;
 
     setState(() {
       _isLoading = false;
-      _resetSuccess = true;
+      _resetSuccess = failure == null;
     });
+
+    if (failure != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failure.message)),
+      );
+    }
   }
 
   @override
@@ -47,9 +73,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reset Password'),
-      ),
+      appBar: AppBar(title: const Text('Reset Password')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -65,11 +89,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            Icons.lock_outline,
-            size: 80,
-            color: colorScheme.primary,
-          ),
+          Icon(Icons.lock_outline, size: 80, color: colorScheme.primary),
           const SizedBox(height: 24),
           Text(
             'Create New Password',
@@ -93,6 +113,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             decoration: InputDecoration(
               labelText: 'New Password',
               prefixIcon: const Icon(Icons.lock_outline),
+              helperText: '8+ chars with uppercase, lowercase and number',
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword
@@ -106,15 +127,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 },
               ),
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter a password';
-              }
-              if (value.length < 6) {
-                return 'Password must be at least 6 characters';
-              }
-              return null;
-            },
+            validator: _validatePassword,
           ),
           const SizedBox(height: 16),
           TextFormField(
