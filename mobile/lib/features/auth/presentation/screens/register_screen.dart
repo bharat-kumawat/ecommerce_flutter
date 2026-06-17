@@ -20,6 +20,43 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
+  String? _validateName(String? value) {
+    final name = value?.trim() ?? '';
+    if (name.isEmpty) return 'Please enter your name';
+    if (name.length < 2 || name.length > 50) {
+      return 'Name must be between 2 and 50 characters';
+    }
+    final validName = RegExp(r"^[A-Za-z][A-Za-z0-9 .'-]*$");
+    if (!validName.hasMatch(name)) {
+      return 'Name contains invalid characters';
+    }
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return 'Please enter your email';
+    if (email.length > 254) return 'Email is too long';
+    final validEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!validEmail.hasMatch(email)) return 'Please enter a valid email';
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+    if (password.isEmpty) return 'Please enter a password';
+    if (password.length < 8 || password.length > 128) {
+      return 'Password must be between 8 and 128 characters';
+    }
+    final hasLowercase = RegExp(r'[a-z]').hasMatch(password);
+    final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
+    final hasNumber = RegExp(r'\d').hasMatch(password);
+    if (!hasLowercase || !hasUppercase || !hasNumber) {
+      return 'Use uppercase, lowercase and number';
+    }
+    return null;
+  }
+
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -88,12 +125,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Full Name',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your name';
-                    }
-                    return null;
-                  },
+                  textInputAction: TextInputAction.next,
+                  validator: _validateName,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -103,12 +136,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Email',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    return null;
-                  },
+                  textInputAction: TextInputAction.next,
+                  validator: _validateEmail,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -117,6 +146,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   decoration: InputDecoration(
                     labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock_outline),
+                    helperText: '8+ chars with uppercase, lowercase and number',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -130,15 +160,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       },
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
+                  textInputAction: TextInputAction.next,
+                  validator: _validatePassword,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
