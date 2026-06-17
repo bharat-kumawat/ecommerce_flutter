@@ -112,14 +112,14 @@ export const getFlashSaleProducts = asyncHandler(async (req, res) => {
 
   const products = await Product.find({
     isFlashSale: true,
-    flashSaleEndTime: { $gt: now }, // Only active sales
+    flashSaleEndTime: { $gt: now },
     isActive: true,
     stock: { $gt: 0 },
   })
     .populate("category", "name slug")
     .limit(Number(limit))
     .skip((Number(page) - 1) * Number(limit))
-    .sort({ flashSaleEndTime: 1 }); // Ending soonest first
+    .sort({ flashSaleEndTime: 1 });
 
   const earliestEndTime = products[0]?.flashSaleEndTime || null;
 
@@ -175,8 +175,8 @@ export const getProductsByCategory = asyncHandler(async (req, res) => {
 export const createProduct = asyncHandler(async (req, res) => {
   const allowedFields = [
     "name", "description", "price", "comparePrice", "category",
-    "brand", "stock", "images", "variants", "isFeatured",
-    "isFlashSale", "flashSalePrice", "flashSaleEndTime", "isActive",
+    "brand", "stock", "images", "variants", "specifications",
+    "isFeatured", "isFlashSale", "flashSalePrice", "flashSaleEndTime", "isActive",
   ];
 
   const productData = {};
@@ -206,6 +206,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     "specifications",
     "isFeatured",
     "isFlashSale",
+    "flashSalePrice",
     "flashSaleEndTime",
     "isActive",
   ];
@@ -237,7 +238,6 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     throw ApiError.notFound("Product not found");
   }
 
-  // Delete images from Cloudinary
   const deletePromises = product.images
     .filter((image) => image.public_id)
     .map((image) => deleteFromCloudinary(image.public_id));
