@@ -17,15 +17,23 @@ const productSchema = new mongoose.Schema(
     description: {
       type: String,
       required: [true, "Description is required"],
+      trim: true,
+      maxlength: [5000, "Description cannot exceed 5000 characters"],
     },
     price: {
       type: Number,
       required: [true, "Price is required"],
-      min: [0, "Price cannot be negative"],
+      min: [0.01, "Price must be greater than zero"],
     },
     comparePrice: {
       type: Number,
       min: [0, "Compare price cannot be negative"],
+      validate: {
+        validator(value) {
+          return value === undefined || value === null || value >= this.price;
+        },
+        message: "Compare price cannot be less than product price",
+      },
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,
@@ -35,6 +43,7 @@ const productSchema = new mongoose.Schema(
     brand: {
       type: String,
       trim: true,
+      maxlength: [100, "Brand cannot exceed 100 characters"],
     },
     images: [
       {
@@ -46,10 +55,12 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, "Stock cannot be negative"],
+      max: [999999, "Stock is too large"],
     },
     sold: {
       type: Number,
       default: 0,
+      min: [0, "Sold count cannot be negative"],
     },
     ratings: {
       type: Number,
@@ -60,6 +71,7 @@ const productSchema = new mongoose.Schema(
     numReviews: {
       type: Number,
       default: 0,
+      min: [0, "Review count cannot be negative"],
     },
     isFeatured: {
       type: Boolean,
@@ -68,7 +80,17 @@ const productSchema = new mongoose.Schema(
     isFlashSale: {
       type: Boolean,
       default: false,
-      index: true, // For fast flash sale queries
+      index: true,
+    },
+    flashSalePrice: {
+      type: Number,
+      min: [0.01, "Flash sale price must be greater than zero"],
+      validate: {
+        validator(value) {
+          return value === undefined || value === null || value < this.price;
+        },
+        message: "Flash sale price must be less than product price",
+      },
     },
     flashSaleEndTime: {
       type: Date,
@@ -80,37 +102,46 @@ const productSchema = new mongoose.Schema(
     },
     variants: [
       {
-        name: String,
+        name: { type: String, trim: true, maxlength: 60 },
         options: [
           {
-            value: String,
-            priceModifier: { type: Number, default: 0 },
-            stock: { type: Number, default: 0 },
+            value: { type: String, trim: true, maxlength: 80 },
+            priceModifier: { type: Number, default: 0, min: 0 },
+            stock: { type: Number, default: 0, min: 0 },
           },
         ],
       },
     ],
     specifications: [
       {
-        key: String,
-        value: String,
+        key: { type: String, trim: true, maxlength: 100 },
+        value: { type: String, trim: true, maxlength: 500 },
       },
     ],
   },
   { timestamps: true },
 );
 
-// Generate slug before save
-productSchema.pre("save", function () {
-  if (this.isModified("name")) {
-    this.slug = slugify(this.name, { lower: true, strict: true });
+// Generate a unique slug before save
+productSchema.pre("save", async function () {
+  if (!this.isModified("name")) return;
+
+  const baseSlug = slugify(this.name, { lower: true, strict: true });
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (await mongoose.models.Product.exists({ slug, _id: { $ne: this._id } })) {
+    slug = `${baseSlug}-${counter}`;
+    counter += 1;
   }
+
+  this.slug = slug;
 });
 
 // Index for search
 productSchema.index({ name: "text", description: "text", brand: "text" });
 productSchema.index({ isActive: 1, category: 1, price: 1, ratings: 1 });
-productSchema.index({ isActive: 1 }); // For filtering active products
+productSchema.index({ isActive: 1 });
 
 const Product = mongoose.model("Product", productSchema);
 
